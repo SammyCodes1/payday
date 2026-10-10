@@ -3,6 +3,7 @@ import { createPublicClient, erc20Abi, http, type Address, type Hex, type Public
 import { spendPolicyAbi } from "./abi";
 import { chainFor } from "./chains";
 import { serverConfig } from "./config";
+import { activePolicy } from "./tenant";
 import type { ChainState } from "./decision/types";
 
 export function publicClient(): PublicClient {
@@ -11,8 +12,9 @@ export function publicClient(): PublicClient {
   return createPublicClient({ chain, transport: http(cfg.PAYDAY_RPC_URL ?? chain.rpcUrls.default.http[0]) }) as PublicClient;
 }
 
+/** The policy of the current tenant (see tenant.ts); the demo policy outside a tenant scope. */
 export function policyAddress(): Address {
-  return serverConfig().PAYDAY_POLICY_ADDRESS;
+  return activePolicy();
 }
 
 const read = <T>(fn: string, args: readonly unknown[] = []) =>
@@ -66,15 +68,21 @@ export async function readPayee(payee: Address) {
   return read<{ allowed: boolean; category: Hex; cap: bigint; label: string }>("getPayee", [payee]);
 }
 
-let ownerCache: { at: number; owner: Address } | null = null;
-/** Current on-chain owner (cached 15 s) - sessions are re-checked against it. */
-export async function currentOwner(): Promise<Address> {
-  if (ownerCache && Date.now() - ownerCache.at < 15_000) return ownerCache.owner;
-  const owner = await read<Address>("owner");
-  ownerCache = { at: Date.now(), owner };
+const ownerCache = new Map<Address, { at: number; owner: Address }>();
+/** On-chain owner of `policy` (cached 15 s) - sessions are re-checked against it. */
+export async function ownerOf(policy: Address): Promise<Address> {
+  const hit = ownerCache.get(policy);
+  if (hit && Date.now() - hit.at < 15_000) return hit.owner;
+  const owner = (await publicClient().readContract({ address: policy, abi: spendPolicyAbi, functionName: "owner" })) as Address;
+  ownerCache.set(policy, { at: Date.now(), owner });
   return owner;
 }
 
+/** Current on-chain owner of the active policy. */
+export async function currentOwner(): Promise<Address> {
+  return ownerOf(activePolicy());
+}
+
 export function clearOwnerCacheForTests() {
-  ownerCache = null;
+  ownerCache.clear();
 }

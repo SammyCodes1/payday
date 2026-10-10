@@ -2,7 +2,8 @@ import "server-only";
 import { getAddress } from "viem";
 import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { getDb } from "../db";
-import { publicClient, currentOwner } from "../chain";
+import { publicClient } from "../chain";
+import { resolvePolicyFor } from "../tenants";
 import { serverConfig } from "../config";
 import { HttpError } from "./guard";
 
@@ -35,6 +36,8 @@ export async function verifySiwe(message: string, signature: `0x${string}`) {
   const ok = await publicClient().verifySiweMessage({ message, signature, domain: origin.host, nonce: parsed.nonce });
   if (!ok) throw new HttpError(401, "bad signature");
   const address = getAddress(parsed.address);
-  if (address !== (await currentOwner())) throw new HttpError(403, "only the policy owner can sign in");
+  if (!(await resolvePolicyFor(address))) {
+    throw new HttpError(403, "only a policy owner can sign in; create your policy at /onboarding first");
+  }
   return address;
 }

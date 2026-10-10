@@ -5,7 +5,7 @@ import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
  * Next 16 proxy (formerly middleware): first gate for every /api route. Routes ALSO call
  * requireOwner(), which additionally re-checks the on-chain owner.
  */
-const PUBLIC_API = ["/api/auth/nonce", "/api/auth/verify", "/api/auth/logout", "/api/stats", "/api/cron/due"];
+const PUBLIC_API = ["/api/auth/nonce", "/api/auth/verify", "/api/auth/logout", "/api/stats", "/api/cron/due", "/api/tenants"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

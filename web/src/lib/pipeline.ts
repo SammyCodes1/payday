@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import type { Address, Hex } from "viem";
+import { getAddress, type Address, type Hex } from "viem";
 import { spendPolicyAbi } from "./abi";
 import { publicClient, readChainState, readPolicyOverview } from "./chain";
 import { now } from "./clock";
@@ -21,6 +21,7 @@ import { getModel } from "./llm/provider";
 import { toUnits } from "./money";
 import { outcomeFromReceipt } from "./receipts";
 import { loadRegistry } from "./registry";
+import { activePolicy, withPolicy } from "./tenant";
 
 const COMMITTED: InvoiceStatus[] = ["SCHEDULED", "AWAITING_OWNER", "ONCHAIN_PENDING", "SUBMITTING"];
 
@@ -57,8 +58,8 @@ export async function intakeUpload(file: { bytes: Uint8Array; declaredType: stri
   getDb()
     .prepare(
       `INSERT INTO invoices (id, created_at, updated_at, file_sha256, file_name, media_type, size_bytes,
-        extraction_json, extraction_error, injection_json, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        extraction_json, extraction_error, injection_json, status, policy_address)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -72,6 +73,7 @@ export async function intakeUpload(file: { bytes: Uint8Array; declaredType: stri
       extraction.ok ? null : extraction.error,
       JSON.stringify(flags),
       extraction.ok ? "ESCALATED" : "EXTRACTION_FAILED", // provisional; evaluate() sets the real status
+      activePolicy(),
     );
   return id;
 }
@@ -79,21 +81,21 @@ export async function intakeUpload(file: { bytes: Uint8Array; declaredType: stri
 function historyFor(row: InvoiceRow, payee: Address, amount: bigint, paymentId: Hex, invNo: string): HistoryFacts {
   const db = getDb();
   const dupe = db
-    .prepare(`SELECT status FROM invoices WHERE payment_id = ? AND id != ? AND status IN ('SUBMITTING','ONCHAIN_PENDING','EXECUTED','SCHEDULED','AWAITING_OWNER') LIMIT 1`)
-    .get(paymentId, row.id) as { status: string } | undefined;
+    .prepare(`SELECT status FROM invoices WHERE payment_id = ? AND id != ? AND status IN ('SUBMITTING','ONCHAIN_PENDING','EXECUTED','SCHEDULED','AWAITING_OWNER') AND policy_address = ? LIMIT 1`)
+    .get(paymentId, row.id, activePolicy()) as { status: string } | undefined;
   const same = db
-    .prepare(`SELECT amount_units, status FROM invoices WHERE payee_address = ? AND invoice_number_norm = ? AND id != ?`)
-    .all(payee, invNo, row.id) as { amount_units: string; status: string }[];
+    .prepare(`SELECT amount_units, status FROM invoices WHERE payee_address = ? AND invoice_number_norm = ? AND id != ? AND policy_address = ?`)
+    .all(payee, invNo, row.id, activePolicy()) as { amount_units: string; status: string }[];
   const since = new Date(now().getTime() - 20 * 86_400_000).toISOString();
   const recent = db
     .prepare(
       `SELECT invoice_number_norm, created_at FROM invoices WHERE payee_address = ? AND amount_units = ? AND id != ?
-       AND invoice_number_norm != ? AND created_at >= ? AND status NOT IN ('REJECTED','DISMISSED','ESCALATED')`,
+       AND invoice_number_norm != ? AND created_at >= ? AND status NOT IN ('REJECTED','DISMISSED','ESCALATED') AND policy_address = ?`,
     )
-    .all(payee, amount.toString(), row.id, invNo, since) as { invoice_number_norm: string; created_at: string }[];
+    .all(payee, amount.toString(), row.id, invNo, since, activePolicy()) as { invoice_number_norm: string; created_at: string }[];
   const milestones = db
-    .prepare(`SELECT milestone FROM invoices WHERE payee_address = ? AND milestone IS NOT NULL AND id != ? AND status IN ('EXECUTED','ONCHAIN_PENDING','SUBMITTING')`)
-    .all(payee, row.id) as { milestone: string }[];
+    .prepare(`SELECT milestone FROM invoices WHERE payee_address = ? AND milestone IS NOT NULL AND id != ? AND status IN ('EXECUTED','ONCHAIN_PENDING','SUBMITTING') AND policy_address = ?`)
+    .all(payee, row.id, activePolicy()) as { milestone: string }[];
   return {
     paymentIdInDb: dupe?.status ?? null,
     sameInvoiceNumber: same.map((s) => ({ amountUnits: BigInt(s.amount_units), status: s.status })),
@@ -107,8 +109,8 @@ function historyFor(row: InvoiceRow, payee: Address, amount: bigint, paymentId: 
 
 function committedOutflow(excludeId: string): bigint {
   const rows = getDb()
-    .prepare(`SELECT amount_units FROM invoices WHERE id != ? AND amount_units IS NOT NULL AND status IN (${COMMITTED.map(() => "?").join(",")})`)
-    .all(excludeId, ...COMMITTED) as { amount_units: string }[];
+    .prepare(`SELECT amount_units FROM invoices WHERE id != ? AND amount_units IS NOT NULL AND status IN (${COMMITTED.map(() => "?").join(",")}) AND policy_address = ?`)
+    .all(excludeId, ...COMMITTED, activePolicy()) as { amount_units: string }[];
   return rows.reduce((s, r) => s + BigInt(r.amount_units), 0n);
 }
 
@@ -147,8 +149,8 @@ export async function evaluateInvoice(id: string, opts: EvaluateOptions = {}) {
 
   if (inv && match?.status === "matched" && amountUnits && amountUnits > 0n && invNo) {
     const chainId = await publicClient().getChainId();
-    paymentId = computePaymentId({ chainId, policy: cfg.PAYDAY_POLICY_ADDRESS, payee: match.entry.address, amount: amountUnits, invoiceNumber: inv.invoiceNumber });
-    invoiceKey = computeInvoiceKey({ chainId, policy: cfg.PAYDAY_POLICY_ADDRESS, payee: match.entry.address, invoiceNumber: inv.invoiceNumber });
+    paymentId = computePaymentId({ chainId, policy: activePolicy(), payee: match.entry.address, amount: amountUnits, invoiceNumber: inv.invoiceNumber });
+    invoiceKey = computeInvoiceKey({ chainId, policy: activePolicy(), payee: match.entry.address, invoiceNumber: inv.invoiceNumber });
     chain = await readChainState({ payee: match.entry.address, category: match.entry.category, paymentId });
     history = historyFor(row, match.entry.address, amountUnits, paymentId, invNo);
   }
@@ -232,8 +234,8 @@ export async function evaluateInvoice(id: string, opts: EvaluateOptions = {}) {
   // ---- submission. Synchronous re-check + mark (no await in between) so two concurrent
   // evaluations in this process cannot both submit the same paymentId.
   const clash = getDb()
-    .prepare(`SELECT 1 FROM invoices WHERE payment_id = ? AND id != ? AND status IN ('SUBMITTING','ONCHAIN_PENDING','EXECUTED')`)
-    .get(paymentId, id);
+    .prepare(`SELECT 1 FROM invoices WHERE payment_id = ? AND id != ? AND status IN ('SUBMITTING','ONCHAIN_PENDING','EXECUTED') AND policy_address = ?`)
+    .get(paymentId, id, activePolicy());
   if (clash) {
     updateInvoice(id, { ...base, decision: "REJECT", status: "REJECTED", last_error: "duplicate paymentId in flight" });
     return { id, result, reasonHash, paymentId, status: "REJECTED" as InvoiceStatus };
@@ -247,7 +249,7 @@ async function submit(
   result: DecisionResult,
   req: { paymentId: Hex; payee: Address; category: Hex; amount: bigint; reasonHash: Hex; invoiceKey: Hex },
 ) {
-  const policy = serverConfig().PAYDAY_POLICY_ADDRESS;
+  const policy = activePolicy();
   try {
     const executor = await getExecutor();
     if (!executor) throw new Error("dry run: PAYDAY_EXECUTOR=none, nothing submitted");
@@ -285,7 +287,7 @@ async function submit(
 
 /** Keep app rows in sync with on-chain outcomes of pending payments (approved/rejected/...). */
 export async function syncOnchainStatuses() {
-  const rows = getDb().prepare("SELECT id, payment_id FROM invoices WHERE status = 'ONCHAIN_PENDING' AND payment_id IS NOT NULL").all() as {
+  const rows = getDb().prepare("SELECT id, payment_id FROM invoices WHERE status = 'ONCHAIN_PENDING' AND payment_id IS NOT NULL AND policy_address = ?").all(activePolicy()) as {
     id: string;
     payment_id: Hex;
   }[];
@@ -293,7 +295,7 @@ export async function syncOnchainStatuses() {
   const map: Record<number, InvoiceStatus> = { 2: "EXECUTED", 3: "REJECTED", 4: "DISMISSED", 5: "DISMISSED" };
   for (const r of rows) {
     const p = (await publicClient().readContract({
-      address: serverConfig().PAYDAY_POLICY_ADDRESS,
+      address: activePolicy(),
       abi: spendPolicyAbi,
       functionName: "getPayment",
       args: [r.payment_id],
@@ -303,12 +305,39 @@ export async function syncOnchainStatuses() {
   }
 }
 
-/** Scheduler: re-evaluate every SCHEDULED invoice whose pay-on date has arrived. */
-export async function runDueSchedule() {
-  await syncOnchainStatuses();
+/**
+ * Scheduler: re-evaluate every SCHEDULED invoice whose pay-on date has arrived.
+ * With a bound tenant (owner-triggered) only that policy; from cron, every policy, each in its own scope.
+ */
+export async function runDueSchedule(opts: { allTenants?: boolean } = {}) {
   const today = now().toISOString().slice(0, 10);
-  const due = getDb().prepare("SELECT id FROM invoices WHERE status = 'SCHEDULED' AND pay_on <= ? ORDER BY pay_on").all(today) as { id: string }[];
-  const results = [];
-  for (const d of due) results.push(await evaluateInvoice(d.id));
+  const policies = opts.allTenants
+    ? (getDb()
+        .prepare("SELECT DISTINCT policy_address AS p FROM invoices WHERE (status = 'SCHEDULED' AND pay_on <= ?) OR status = 'ONCHAIN_PENDING'")
+        .all(today) as { p: string }[]).map((r) => getAddress(r.p))
+    : [activePolicy()];
+  const results: Awaited<ReturnType<typeof evaluateInvoice>>[] = [];
+  for (const policy of policies) {
+    // One tenant's RPC/LLM/executor failure must not stop scheduled payments for the others (F-4).
+    try {
+      await withPolicy(policy, async () => {
+        await syncOnchainStatuses();
+        const due = getDb()
+          .prepare("SELECT id FROM invoices WHERE status = 'SCHEDULED' AND pay_on <= ? AND policy_address = ? ORDER BY pay_on")
+          .all(today, policy) as { id: string }[];
+        for (const d of due) {
+          try {
+            results.push(await evaluateInvoice(d.id));
+          } catch (e) {
+            if (!opts.allTenants) throw e;
+            console.error("[payday] scheduler invoice error:", policy, d.id, e instanceof Error ? e.message : "unknown");
+          }
+        }
+      });
+    } catch (e) {
+      if (!opts.allTenants) throw e;
+      console.error("[payday] scheduler tenant error:", policy, e instanceof Error ? e.message : "unknown");
+    }
+  }
   return results.map((r) => ({ id: r.id, decision: r.result.decision, status: r.status }));
 }

@@ -14,7 +14,8 @@ export const POST = handle(async (req) => {
   const ok = !!secret && given.length === secret.length && timingSafeEqual(given, Buffer.from(secret));
   if (!ok) {
     if (auth) throw new HttpError(401, "bad cron secret");
-    await requireOwner(req, "write");
+    await requireOwner(req, "write"); // owner session: only their own policy
+    return json({ processed: await runDueSchedule() });
   }
-  return json({ processed: await runDueSchedule() });
+  return json({ processed: await runDueSchedule({ allTenants: true }) });
 });

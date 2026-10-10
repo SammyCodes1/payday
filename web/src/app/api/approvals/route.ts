@@ -2,23 +2,22 @@ import type { Hex } from "viem";
 import { spendPolicyAbi } from "@/lib/abi";
 import { handle, json, requireOwner } from "@/lib/auth/guard";
 import { publicClient } from "@/lib/chain";
-import { serverConfig } from "@/lib/config";
 import { getDb } from "@/lib/db";
 import { currentPolicyEvents, pendingFromEvents } from "@/lib/events";
 import { syncOnchainStatuses } from "@/lib/pipeline";
+import { activePolicy } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 /** Pending approvals, rebuilt from chain (PaymentPending without a closing event). */
 export const GET = handle(async (req) => {
   await requireOwner(req);
-  const cfg = serverConfig();
   await syncOnchainStatuses();
   const pending = pendingFromEvents(await currentPolicyEvents());
   const chainId = await publicClient().getChainId();
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
   const readP = <T,>(functionName: string, args: readonly unknown[] = []) =>
-    publicClient().readContract({ address: cfg.PAYDAY_POLICY_ADDRESS, abi: spendPolicyAbi, functionName: functionName as never, args: args as never }) as Promise<T>;
+    publicClient().readContract({ address: activePolicy(), abi: spendPolicyAbi, functionName: functionName as never, args: args as never }) as Promise<T>;
   const [ownerEpoch, agentEpoch, openPending, maxOpenPending] = await Promise.all([
     readP<number>("ownerEpoch"),
     readP<number>("agentEpoch"),
@@ -28,7 +27,7 @@ export const GET = handle(async (req) => {
   const items = [];
   for (const e of pending) {
     const id = e.args.paymentId as Hex;
-    const p = (await publicClient().readContract({ address: cfg.PAYDAY_POLICY_ADDRESS, abi: spendPolicyAbi, functionName: "getPayment", args: [id] })) as {
+    const p = (await publicClient().readContract({ address: activePolicy(), abi: spendPolicyAbi, functionName: "getPayment", args: [id] })) as {
       payee: Hex;
       status: number;
       expiresAt: bigint;
@@ -53,7 +52,7 @@ export const GET = handle(async (req) => {
             : payee.category.toLowerCase() !== p.category.toLowerCase()
               ? "Payee's category changed since this request. Approval is refused on chain."
               : null;
-    const inv = getDb().prepare("SELECT id, file_name, explanation, extraction_json FROM invoices WHERE payment_id = ? ORDER BY created_at DESC LIMIT 1").get(id) as
+    const inv = getDb().prepare("SELECT id, file_name, explanation, extraction_json FROM invoices WHERE payment_id = ? AND policy_address = ? ORDER BY created_at DESC LIMIT 1").get(id, activePolicy()) as
       | { id: string; file_name: string; explanation: string | null; extraction_json: string | null }
       | undefined;
     items.push({
@@ -78,9 +77,9 @@ export const GET = handle(async (req) => {
     });
   }
   return json({
-    policy: cfg.PAYDAY_POLICY_ADDRESS,
+    policy: activePolicy(),
     chainId,
-    eip712: { name: "Payday SpendPolicy", version: "1", chainId, verifyingContract: cfg.PAYDAY_POLICY_ADDRESS },
+    eip712: { name: "Payday SpendPolicy", version: "1", chainId, verifyingContract: activePolicy() },
     ownerEpoch: String(ownerEpoch),
     openPending: openPending.toString(),
     maxOpenPending: maxOpenPending.toString(),

@@ -259,6 +259,42 @@ override Ownable calls; `low-level-calls` for the ERC-1271 `staticcall`, as in O
 * **Question**: should hard-rule refusals also be logged? They currently revert with no event. A
   non-reverting `PaymentRefused` would let the agent spam storage, which is why we avoided it.
 
+## Multi-tenant: one SpendPolicy per business
+
+Payday is multi-tenant. **Every business deploys its own SpendPolicy** through `src/SpendPolicyFactory.sol`,
+signed by its own wallet, which becomes the policy owner. Nobody uses Sammy's deployer wallet, and Payday
+never holds anyone's funds or owner key.
+
+| | |
+|---|---|
+| Factory | **TBD: not deployed yet** (`script/DeploySpendPolicyFactory.s.sol`, Arc Testnet only, needs Sammy's go-ahead) |
+| Demo policy | `0x5dC481B17691fE4Bf3AfF4b9f4cDce63359D8Cd0` is **Sammy's own** policy (deployed directly, not via the factory). It stays the app's default `PAYDAY_POLICY_ADDRESS`. |
+
+**Factory** (`createPolicy(agent, perPaymentCap, monthlyCap, globalCeiling, pendingTtl) returns (address)`):
+- Callable by anyone. Deploys `new SpendPolicy(ARC_USDC, msg.sender, agent, ...)`, so the caller is owner
+  immediately (no transfer step, the factory never owns anything). Token is the constant Arc USDC `0x3600…0000`.
+- Emits `PolicyCreated(owner, agent, policy, perPaymentCap, monthlyCap, globalCeiling, pendingTtl)`.
+- Registry: `isPolicy(address)`, `policiesOf(owner) → address[]` (by original creator; ownership can later be
+  transferred on the policy, so always confirm with `owner()`), `policyCount()`, `allPolicies(i)`.
+- Rejects a zero agent and `agent == msg.sender` (SpendPolicy's constructor already forbids owner == agent,
+  so separate keys are enforced, not optional). Caps / TTL / ceiling bounds are checked by SpendPolicy itself.
+- No admin, no pause, no upgradeability, holds no funds. `SpendPolicy.sol` is unchanged (sha256 `c798da85…ba740`).
+
+**Web onboarding** (`/onboarding`, "Create my policy"):
+1. Connect wallet → enter agent address (pre-filled with Payday's hosted agent wallet, if configured) and caps
+   (defaults 20 / 100 / 200 USDC, 7-day approval window) → wallet signs `factory.createPolicy`.
+2. The page reads `PolicyCreated` from the receipt and POSTs `{policy, txHash}` to `/api/tenants`. The server
+   verifies on chain (`factory.isPolicy`, the receipt's `PolicyCreated` log, the policy's `owner()`/`agent()`)
+   and stores `owner → policy` in the SQLite `tenants` table. Nothing the caller says is trusted.
+3. The owner signs in with SIWE. Sign-in is allowed only for a wallet that is the **current on-chain owner**
+   of its registered policy (or of the demo policy). Every authenticated request is bound to that one policy:
+   chain reads, invoices, payee terms, approvals, decision log and agent submissions only touch it.
+   Invoices and payee terms carry `policy_address`; pre-existing rows belong to the demo policy.
+4. The scheduler (cron secret) processes due invoices per policy, each in its own scope.
+
+The hosted agent can only submit to policies whose `agent()` is that wallet; a business that sets its own
+agent key runs its own agent. Env: `PAYDAY_FACTORY_ADDRESS` (unset = onboarding shows "not available yet").
+
 ## Live on Arc Testnet
 
 | | |
@@ -496,7 +532,7 @@ In-app owner confirmation can only downgrade NO_AGREED_TERMS, LINE_ITEMS_MISMATC
 ## Database
 
 SQLite through Node's built-in `node:sqlite` (Node ≥ 22.13), which needs no native build. File: `PAYDAY_DB_PATH`, default `./data/payday.sqlite`.
-- Tables: `invoices`, `reason_docs`, `payees` (owner-set identifiers, bank details and terms), `auth_nonces`.
+- Tables: `invoices` (scoped by `policy_address`), `reason_docs`, `payee_terms` (owner-set identifiers, bank details and terms, keyed by policy + payee), `tenants` (owner → policy, verified on chain), `auth_nonces`. The legacy `payees` table is migrated into `payee_terms` for the demo policy on start.
 - Uploaded files are not stored; only their sha256 is kept.
 - Use a single instance. Postgres would be the move for several instances (see open questions).
 
@@ -504,7 +540,7 @@ SQLite through Node's built-in `node:sqlite` (Node ≥ 22.13), which needs no na
 
 | Group | Names |
 |---|---|
-| Chain / policy | `PAYDAY_CHAIN`, `PAYDAY_RPC_URL`, `PAYDAY_POLICY_ADDRESS`, `PAYDAY_POLICY_DEPLOY_BLOCK`, `PAYDAY_STATS_POLICIES`, `PAYDAY_LOG_CHUNK` |
+| Chain / policy | `PAYDAY_CHAIN`, `PAYDAY_RPC_URL`, `PAYDAY_POLICY_ADDRESS` (demo/default policy), `PAYDAY_POLICY_DEPLOY_BLOCK`, `PAYDAY_FACTORY_ADDRESS`, `PAYDAY_STATS_POLICIES`, `PAYDAY_LOG_CHUNK` |
 | Agent | `PAYDAY_EXECUTOR` (`circle`/`local`/`none`), `PAYDAY_LOCAL_AGENT_INDEX`, **`CIRCLE_API_KEY`**, **`CIRCLE_ENTITY_SECRET`**, `CIRCLE_AGENT_WALLET_ID`, `CIRCLE_AGENT_WALLET_ADDRESS` |
 | LLM | `PAYDAY_LLM_PROVIDER`, `PAYDAY_LLM_MODEL`, **`OPENAI_API_KEY`** / **`ANTHROPIC_API_KEY`** / **`GOOGLE_GENERATIVE_AI_API_KEY`** (only the one you use) |
 | App | **`SESSION_SECRET`**, **`CRON_SECRET`**, `PAYDAY_APP_ORIGIN`, `PAYDAY_DB_PATH`, `PAYDAY_MAX_UPLOAD_BYTES`, `PAYDAY_SCHEDULE_LEAD_DAYS`, `PAYDAY_RUNWAY_BUFFER_USDC` |

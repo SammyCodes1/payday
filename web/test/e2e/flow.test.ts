@@ -12,11 +12,12 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPublicClient, createWalletClient, erc20Abi, http, type Abi, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, erc20Abi, getAddress, http, type Abi, type Address, type Hex } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { createSiweMessage } from "viem/siwe";
 import { spendPolicyAbi } from "@/lib/abi";
+import { spendPolicyFactoryAbi } from "@/lib/factory-abi";
 import { categoryToBytes32, computeInvoiceKey } from "@/lib/ids";
 import { APPROVE_TYPES, approvalDomain, approvalMessage } from "@/lib/eip712";
 import { PUBLIC_TEST_MNEMONIC } from "@/lib/executor/local";
@@ -73,6 +74,7 @@ async function loadRoutes() {
     log: await import("@/app/api/log/route"),
     stats: await import("@/app/api/stats/route"),
     cron: await import("@/app/api/cron/due/route"),
+    tenants: await import("@/app/api/tenants/route"),
     proxy: await import("@/proxy"),
     clock: await import("@/lib/clock"),
     chain: await import("@/lib/chain"),
@@ -382,3 +384,81 @@ describe("e2e: local anvil + real SpendPolicy", () => {
     expect(o).toMatchObject({ totalPaid: (2400n * U).toString(), balance: (7600n * U).toString(), agent: agent.address });
   });
 });
+
+describe("e2e: multi-tenant onboarding through SpendPolicyFactory", () => {
+  const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
+  let factory: Address;
+  let tenantPolicy: Address;
+  let createTx: Hex;
+  let tenantCookie = "";
+  const demoCookie = () => cookie;
+
+  it("factory deploys; a new business creates its OWN policy from its own wallet", async () => {
+    const pc = pub();
+    // The factory hard-codes Arc USDC; put the 6-decimal mock's code there on anvil.
+    const tok = JSON.parse(readFileSync(join(ROOT, "out", "MockUSDC.sol", "MockUSDC.json"), "utf8"));
+    await pc.request({ method: "anvil_setCode" as never, params: [ARC_USDC, tok.deployedBytecode.object] as never });
+    const f = artifact("SpendPolicyFactory.sol", "SpendPolicyFactory");
+    const h = await wallet(owner).deployContract({ abi: f.abi, bytecode: f.bytecode });
+    factory = getAddress((await pc.waitForTransactionReceipt({ hash: h })).contractAddress!);
+    process.env.PAYDAY_FACTORY_ADDRESS = factory;
+
+    const cfg = (await (await R.tenants.GET(req(`/api/tenants?owner=${outsider.address}`, { cookie: null }))).json()) as {
+      factory: string; hostedAgent: string; existing: unknown; defaults: { perPaymentUsdc: string };
+    };
+    expect(cfg).toMatchObject({ factory, hostedAgent: agent.address, existing: null, defaults: { perPaymentUsdc: "20" } });
+
+    createTx = await wallet(outsider).writeContract({
+      address: factory, abi: spendPolicyFactoryAbi, functionName: "createPolicy",
+      args: [agent.address, 20n * U, 100n * U, 200n * U, 7n * 86400n],
+    });
+    await pc.waitForTransactionReceipt({ hash: createTx });
+    const list = await pc.readContract({ address: factory, abi: spendPolicyFactoryAbi, functionName: "policiesOf", args: [outsider.address] });
+    tenantPolicy = list[0]!;
+    expect(await pc.readContract({ address: tenantPolicy, abi: spendPolicyAbi, functionName: "owner" })).toBe(outsider.address);
+  });
+
+  it("registration is verified on chain: non-factory policy and wrong tx are refused", async () => {
+    R.rate.resetRateLimitsForTests();
+    const post = (b: unknown) => R.tenants.POST(req("/api/tenants", { ...jsonBody(b), cookie: null }));
+    expect((await post({ policy: policy, txHash: createTx })).status).toBe(400); // demo policy: not from the factory
+    expect((await post({ policy: tenantPolicy, txHash: "0x" + "11".repeat(32) })).status).toBe(400);
+    const ok = await post({ policy: tenantPolicy, txHash: createTx });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ owner: outsider.address, policy: tenantPolicy, agent: agent.address });
+  });
+
+  it("the new owner signs in and sees ONLY their own policy, invoices and payees", async () => {
+    const { res } = await signIn(outsider);
+    expect(res.status).toBe(200);
+    tenantCookie = res.headers.get("set-cookie")!.split(";")[0]!;
+    const as = (path: string) => req(path, { cookie: tenantCookie });
+    expect(await (await R.me.GET(as("/api/auth/me"))).json()).toMatchObject({ address: outsider.address, policy: tenantPolicy });
+    const o = (await (await R.policy.GET(as("/api/policy"))).json()) as { policy: string; owner: string; perPaymentCap: string };
+    expect(o).toMatchObject({ policy: tenantPolicy, owner: outsider.address, perPaymentCap: (20n * U).toString() });
+    expect(((await (await R.invoices.GET(as("/api/invoices"))).json()) as { invoices: unknown[] }).invoices).toHaveLength(0);
+    expect(((await (await R.payees.GET(as("/api/payees"))).json()) as { payees: unknown[] }).payees).toHaveLength(0);
+    expect(((await (await R.approvals.GET(as("/api/approvals"))).json()) as { items: unknown[] }).items).toHaveLength(0);
+    expect((await R.invoice.GET(as(`/api/invoices/${ids.normal}`), ctx(ids.normal))).status).toBe(404);
+  });
+
+  it("tenant uploads never touch the demo policy; the demo owner still sees only the demo policy", async () => {
+    const before = await bal(ADEBAYO);
+    const fd = new FormData();
+    fd.set("file", new File([readFileSync(join(FIX, "01-normal.pdf"))], "01-normal.pdf", { type: "application/pdf" }));
+    const res = await R.invoices.POST(req("/api/invoices", { method: "POST", body: fd, ip: "10.9.9.9", cookie: tenantCookie }));
+    expect(res.status).toBe(201);
+    const inv = ((await res.json()) as { invoice: { decision: string; status: string } }).invoice;
+    expect(inv.status).not.toBe("EXECUTED"); // payee is not on THIS tenant's allow-list
+    expect(await bal(ADEBAYO)).toBe(before);
+    const mine = ((await (await R.invoices.GET(req("/api/invoices", { cookie: tenantCookie }))).json()) as { invoices: unknown[] }).invoices;
+    expect(mine).toHaveLength(1);
+    const demo = (await (await R.policy.GET(req("/api/policy", { cookie: demoCookie() }))).json()) as { policy: string };
+    expect(demo.policy).toBe(getAddress(policy));
+    const demoInv = ((await (await R.invoices.GET(req("/api/invoices", { cookie: demoCookie() }))).json()) as { invoices: { id: string }[] }).invoices;
+    expect(demoInv.length).toBeGreaterThan(1);
+    expect(demoInv.some((i) => i.id === ids.normal)).toBe(true);
+    expect((await (await R.tenants.GET(req(`/api/tenants?owner=${outsider.address}`, { cookie: null }))).json())).toMatchObject({ existing: { policy: tenantPolicy } });
+  });
+});
+

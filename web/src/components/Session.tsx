@@ -5,9 +5,10 @@ import { connect, disconnect, signMessage } from "wagmi/actions";
 import { injected } from "wagmi/connectors";
 import { createSiweMessage } from "viem/siwe";
 import { api } from "./api";
+import Link from "next/link";
 import { Button } from "./ui";
 
-/** Wallet connect + Sign-In With Ethereum. Only the on-chain policy owner can sign in. */
+/** Wallet connect + Sign-In With Ethereum. Only the on-chain owner of a Payday policy can sign in. */
 export function Session() {
   const config = useConfig();
   const { address, isConnected } = useConnection();
@@ -62,7 +63,12 @@ export function Session() {
           <Button variant="ghost" onClick={signOut}>Sign out</Button>
         </>
       ) : (
-        <Button onClick={signIn}>Sign in</Button>
+        <>
+          <Link href="/onboarding" className="hidden min-h-11 items-center px-2 text-sm text-muted underline-offset-4 hover:text-ink hover:underline sm:inline-flex">
+            New business?
+          </Link>
+          <Button onClick={signIn}>Sign in</Button>
+        </>
       )}
       {err && <span role="alert" className="max-w-48 truncate text-xs text-reject" title={err}>{err}</span>}
     </div>

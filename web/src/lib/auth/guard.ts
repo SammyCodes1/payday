@@ -2,7 +2,8 @@ import "server-only";
 import { getAddress } from "viem";
 import { NextResponse } from "next/server";
 import { serverConfig } from "../config";
-import { currentOwner } from "../chain";
+import { resolvePolicyFor, TenantError } from "../tenants";
+import { bindScope, NoTenantError, runInScope } from "../tenant";
 import { clientIp, rateLimit, type Bucket } from "../rate-limit";
 import { SESSION_COOKIE, verifySession } from "./session";
 
@@ -37,23 +38,29 @@ export function limit(req: Request, bucket: Bucket) {
   if (!r.ok) throw new HttpError(429, "rate limit exceeded", { "Retry-After": String(r.retryAfter) });
 }
 
-/** Authenticated owner: valid session AND still the on-chain owner of the policy. */
+/**
+ * Authenticated owner: valid session AND still the on-chain owner of THEIR policy. Binds the
+ * request to that policy, so every later read/write in this request only touches it.
+ */
 export async function requireOwner(req: Request, bucket: Bucket = "read") {
   limit(req, bucket);
   assertSameOrigin(req);
   const session = await verifySession(cookieFrom(req, SESSION_COOKIE), serverConfig().SESSION_SECRET);
   if (!session) throw new HttpError(401, "not signed in");
-  const owner = await currentOwner();
-  if (getAddress(session.sub) !== owner) throw new HttpError(403, "session address is no longer the policy owner");
-  return { address: owner };
+  const tenant = await resolvePolicyFor(getAddress(session.sub));
+  if (!tenant) throw new HttpError(403, "session address is no longer the owner of a Payday policy");
+  bindScope(tenant.policy, tenant.owner);
+  return { address: tenant.owner, policy: tenant.policy };
 }
 
 /** Wraps a route handler: converts thrown errors to JSON without leaking internals. */
 export function handle<A extends unknown[]>(fn: (req: Request, ...rest: A) => Promise<Response>) {
   return async (req: Request, ...rest: A): Promise<Response> => {
     try {
-      return await fn(req, ...rest);
+      return await runInScope(() => fn(req, ...rest));
     } catch (e) {
+      if (e instanceof NoTenantError) return NextResponse.json({ error: e.message }, { status: e.status });
+      if (e instanceof TenantError) return NextResponse.json({ error: e.message }, { status: e.status });
       if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status, headers: e.headers });
       console.error("[payday] route error:", e instanceof Error ? e.message : "unknown");
       return NextResponse.json({ error: "internal error" }, { status: 500 });

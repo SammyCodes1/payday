@@ -17,6 +17,8 @@ const schema = z.object({
   PAYDAY_RPC_URL: z.string().url().optional(),
   PAYDAY_POLICY_ADDRESS: addr,
   PAYDAY_POLICY_DEPLOY_BLOCK: z.coerce.bigint().default(0n),
+  /** SpendPolicyFactory (multi-tenant onboarding). Unset until the factory is deployed. */
+  PAYDAY_FACTORY_ADDRESS: z.preprocess((v) => (v === "" ? undefined : v), addr.optional()),
   PAYDAY_STATS_POLICIES: z.string().optional(), // "0xabc:123,0xdef:456"
   PAYDAY_LOG_CHUNK: z.coerce.bigint().default(10_000n),
   PAYDAY_EXECUTOR: z.enum(["circle", "local", "none"]).default("none"),

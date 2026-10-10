@@ -7,6 +7,7 @@ import { normalizeRef } from "./ids";
 import type { AgreedTerms, RegistryEntry } from "./decision/types";
 import { z } from "zod";
 import { DecimalString } from "./invoice/schema";
+import { activePolicy } from "./tenant";
 
 export const AgreedTermsSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("fixed"), amount: DecimalString, period: z.string().max(40).optional() }).strict(),
@@ -42,12 +43,13 @@ export function savePayeeRecord(input: z.infer<typeof PayeeRecordInput>, by: Add
   const address = getAddress(input.address);
   getDb()
     .prepare(
-      `INSERT INTO payees (address, identifiers_json, aliases_json, bank_details, terms_json, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(address) DO UPDATE SET identifiers_json=excluded.identifiers_json, aliases_json=excluded.aliases_json,
+      `INSERT INTO payee_terms (policy_address, address, identifiers_json, aliases_json, bank_details, terms_json, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(policy_address, address) DO UPDATE SET identifiers_json=excluded.identifiers_json, aliases_json=excluded.aliases_json,
          bank_details=excluded.bank_details, terms_json=excluded.terms_json, updated_at=excluded.updated_at, updated_by=excluded.updated_by`,
     )
     .run(
+      activePolicy(),
       address,
       JSON.stringify(input.identifiers.map(normalizeRef).filter(Boolean)),
       JSON.stringify(input.aliases),
@@ -61,7 +63,7 @@ export function savePayeeRecord(input: z.infer<typeof PayeeRecordInput>, by: Add
 /** Join on-chain allow-list (events + live getPayee) with the owner's app-side records. */
 export async function loadRegistry(): Promise<RegistryEntry[]> {
   const onchain = payeesFromEvents(await currentPolicyEvents());
-  const rows = getDb().prepare("SELECT * FROM payees").all() as unknown as PayeeRow[];
+  const rows = getDb().prepare("SELECT * FROM payee_terms WHERE policy_address = ?").all(activePolicy()) as unknown as PayeeRow[];
   const byAddr = new Map(rows.map((r) => [getAddress(r.address), r]));
   const out: RegistryEntry[] = [];
   for (const p of onchain) {

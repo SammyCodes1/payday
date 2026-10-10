@@ -3,7 +3,8 @@ import { keccak256, parseEventLogs, toBytes, type Address, type Hex } from "viem
 import { spendPolicyAbi } from "./abi";
 import { publicClient } from "./chain";
 import { serverConfig, statsPolicies } from "./config";
-import { getDb } from "./db";
+import { getDb, getTenantByPolicy } from "./db";
+import { activeFromBlock, activePolicy } from "./tenant";
 
 /** One decoded SpendPolicy event, in chain order. */
 export interface PolicyEvent {
@@ -41,9 +42,13 @@ export async function fetchPolicyEvents(policy: Address, fromBlock: bigint): Pro
   return out.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1));
 }
 
+/** Events of the ACTIVE tenant's policy (see tenant.ts). */
 export function currentPolicyEvents() {
-  const cfg = serverConfig();
-  return fetchPolicyEvents(cfg.PAYDAY_POLICY_ADDRESS, cfg.PAYDAY_POLICY_DEPLOY_BLOCK);
+  const fromBlock = activeFromBlock((p) => {
+    const t = getTenantByPolicy(p);
+    return t ? BigInt(t.deploy_block) : undefined;
+  });
+  return fetchPolicyEvents(activePolicy(), fromBlock);
 }
 
 /** Allow-list as rebuilt from PayeeSet / PayeeRemoved events. */
