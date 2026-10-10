@@ -1,0 +1,153 @@
+No files changed, compilation skipped
+
+Ran 20 tests for test/Adversarial.t.sol:AdversarialTest
+[PASS] test_blocklist_paymentRevertsCleanly() (gas: 1275578)
+[PASS] test_blocklist_pendingApproveReverts_thenRejectable() (gas: 685872)
+[PASS] test_blocklist_policyItselfBlocked_revertsCleanly() (gas: 451865)
+[PASS] test_falseReturningToken_revertsCleanly() (gas: 1182616)
+[PASS] test_reentrancy_approveAndWithdraw_blocked() (gas: 2130967)
+[PASS] test_reentrancy_requestPayment_bubbles() (gas: 1731966)
+[PASS] test_reentrancy_requestPayment_swallowed_onlyOnePays() (gas: 1789757)
+[PASS] test_reentrancy_withdraw_blocked() (gas: 1161110)
+[PASS] test_sig_deadlineBoundary() (gas: 867199)
+[PASS] test_sig_domainSeparatorMatchesSpec() (gas: 5926)
+[PASS] test_sig_invalidatedNonce_rejected() (gas: 401733)
+[PASS] test_sig_oldOwnerSignatureDeadAfterTransfer() (gas: 446634)
+[PASS] test_sig_otherChain_rejected() (gas: 422919)
+[PASS] test_sig_otherContract_rejected() (gas: 368332)
+[PASS] test_sig_pausedOrNotPendingOrMalformed_rejected() (gas: 543402)
+[PASS] test_sig_relayerSubmitsOwnerApproval() (gas: 548433)
+[PASS] test_sig_replayRejected() (gas: 904154)
+[PASS] test_sig_stillRespectsCeilingAndExpiry() (gas: 800877)
+[PASS] test_sig_tamperedAmountOrPayee_rejected() (gas: 422210)
+[PASS] test_sig_wrongSigner_rejected() (gas: 360811)
+Suite result: ok. 20 passed; 0 failed; 0 skipped; finished in 25.61s (23.79ms CPU time)
+
+Ran 10 tests for test/SpendPolicy.fuzz.t.sol:SpendPolicyFuzzTest
+[PASS] testFuzz_ceilingNeverExceeded(uint256,uint256) (runs: 10000, μ: 3740086, ~: 2914400)
+[PASS] testFuzz_duplicateIdAlwaysRefused(uint256,uint8,uint256,bool) (runs: 10000, μ: 411379, ~: 379776)
+[PASS] testFuzz_microUnitBoundary(uint256) (runs: 10000, μ: 751793, ~: 752155)
+[PASS] testFuzz_nonAllowListedAlwaysReverts(address,uint256,bytes32) (runs: 10000, μ: 56786, ~: 57032)
+[PASS] testFuzz_nonOwnerCannotConfigure(address,uint256) (runs: 10000, μ: 143696, ~: 143969)
+[PASS] testFuzz_onlyAgentCanRequest(address) (runs: 10000, μ: 44321, ~: 44321)
+[PASS] testFuzz_perPaymentCap(uint256) (runs: 10000, μ: 429553, ~: 369951)
+[PASS] testFuzz_randomSignatureBytesRejected(bytes32,bytes32,uint8) (runs: 10000, μ: 357697, ~: 358284)
+[PASS] testFuzz_rollingWindowNeverExceedsMonthlyCap(uint256) (runs: 10000, μ: 12636875, ~: 12627787)
+[PASS] testFuzz_signatureFromNonOwnerRejected(uint32) (runs: 10000, μ: 368563, ~: 368701)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 25.61s (106.95s CPU time)
+
+Ran 70 tests for test/SpendPolicy.t.sol:SpendPolicyTest
+[PASS] test_agent_cannotChangeAnySetting() (gas: 811886)
+[PASS] test_agent_payNonAllowListed_reverts() (gas: 227850)
+[PASS] test_agent_payRemovedPayee_reverts() (gas: 90313)
+[PASS] test_approve_canOverrideMonthlyCap() (gas: 2345188)
+[PASS] test_approve_ceilingAtBoundary_executes() (gas: 902737)
+[PASS] test_approve_executesAndConsumesBudget() (gas: 1226547)
+[PASS] test_approve_onlyPending() (gas: 498934)
+[PASS] test_approve_pastCeiling_reverts_thenRejectable() (gas: 861207)
+[PASS] test_approve_rechecksAllowList() (gas: 379451)
+[PASS] test_approve_rechecksBalance() (gas: 443472)
+[PASS] test_approve_rechecksPause() (gas: 592670)
+[PASS] test_cancel_byAgentOrOwner() (gas: 698759)
+[PASS] test_cancel_strangerOrNonPending_reverts() (gas: 362499)
+[PASS] test_categoryBudget_atBoundary_executes() (gas: 1173192)
+[PASS] test_categoryBudget_past_goesPending_otherCategoryStillPays() (gas: 1773021)
+[PASS] test_categoryMismatch_reverts() (gas: 53409)
+[PASS] test_categoryWithoutBudget_neverAutoPays() (gas: 406688)
+[PASS] test_ceiling_atBoundary_executes() (gas: 850688)
+[PASS] test_ceiling_cannotBeRaised_orKeptEqual() (gas: 98889)
+[PASS] test_ceiling_loweredBelowTotalPaid_freezesOutflow() (gas: 500081)
+[PASS] test_ceiling_past_reverts() (gas: 887293)
+[PASS] test_constructor_acceptsTtlBoundaries() (gas: 13012)
+[PASS] test_constructor_rejectsBadArgs() (gas: 9067)
+[PASS] test_constructor_setsState() (gas: 62480)
+[PASS] test_decimals_capsAreInMicroUsdc() (gas: 723225)
+[PASS] test_decimals_rejects18DecimalToken() (gas: 541489)
+[PASS] test_decimals_smallestUnitPays() (gas: 445731)
+[PASS] test_duplicate_afterApprove_reverts() (gas: 524642)
+[PASS] test_duplicate_afterCancel_reverts() (gas: 376011)
+[PASS] test_duplicate_afterExecuted_reverts() (gas: 464819)
+[PASS] test_duplicate_afterExpire_reverts() (gas: 373763)
+[PASS] test_duplicate_afterReject_reverts() (gas: 377654)
+[PASS] test_duplicate_whilePending_reverts() (gas: 341619)
+[PASS] test_expiry_approveAfterExpiry_reverts() (gas: 342866)
+[PASS] test_expiry_approveAtExactExpiry_ok() (gas: 498417)
+[PASS] test_expiry_markExpired() (gas: 378787)
+[PASS] test_expiry_ttlChangeDoesNotAffectExisting() (gas: 347831)
+[PASS] test_insufficientBalance_atRequest_reverts() (gas: 383313)
+[PASS] test_monthlyCap_atBoundary_executes() (gas: 1868716)
+[PASS] test_monthlyCap_past_goesPending() (gas: 2186596)
+[PASS] test_multipleLimits_reportedAsBitmask() (gas: 2193050)
+[PASS] test_noNativeValueAccepted() (gas: 38521)
+[PASS] test_onlyAgent_canRequest() (gas: 79368)
+[PASS] test_ownership_cannotGoToAgent_orBeRenounced() (gas: 55540)
+[PASS] test_ownership_pendingTransferCanBeOverwritten() (gas: 124083)
+[PASS] test_ownership_twoStep() (gas: 221568)
+[PASS] test_paused_blocksRequests_thenUnpause() (gas: 536607)
+[PASS] test_paused_ownerCanStillConfigureWithdrawRejectAndCancel() (gas: 818136)
+[PASS] test_pay_withinCaps_executesAndEmits() (gas: 701278)
+[PASS] test_payeeCap_atBoundary_executes() (gas: 974210)
+[PASS] test_payeeCap_past_goesPending() (gas: 1281774)
+[PASS] test_payeeCap_zeroMeansNoPayeeCap() (gas: 1082155)
+[PASS] test_pending_doesNotReserveBudget() (gas: 878868)
+[PASS] test_perPaymentCap_atBoundary_executes() (gas: 425174)
+[PASS] test_perPaymentCap_past_goesPending() (gas: 333164)
+[PASS] test_reject_emitsAndBurnsId() (gas: 378156)
+[PASS] test_request_overCeiling_revertsEvenIfItWouldBePending() (gas: 91637)
+[PASS] test_setAgent_rotates() (gas: 500121)
+[PASS] test_setAgent_validation() (gas: 173896)
+[PASS] test_setPayee_storesAndEmits() (gas: 150978)
+[PASS] test_setPayee_validation() (gas: 237019)
+[PASS] test_settings_emitEvents() (gas: 343951)
+[PASS] test_stranger_cannotChangeAnySetting() (gas: 483704)
+[PASS] test_totalBinds_whenCategoriesStillHaveRoom() (gas: 2429791)
+[PASS] test_window_edge_freesOnDay31() (gas: 2291151)
+[PASS] test_window_edge_noDoubleSpendAcrossDayBoundary() (gas: 2173716)
+[PASS] test_window_edge_stillBlockedOnLastDayOfWindow() (gas: 2248428)
+[PASS] test_window_partialRollOff() (gas: 961245)
+[PASS] test_withdraw_ownerOnly() (gas: 161186)
+[PASS] test_zeroIdAndZeroAmount_revert() (gas: 84358)
+Suite result: ok. 70 passed; 0 failed; 0 skipped; finished in 25.61s (89.92ms CPU time)
+
+Ran 1 test for test/SpendPolicy.invariant.t.sol:SpendPolicyInvariantTest
+[PASS]
+SpendPolicyInvariantTest invariants:
+[PASS] invariant_agentBoundedByCaps
+[PASS] invariant_conservation
+[PASS] invariant_noPaymentIdExecutesTwice
+[PASS] invariant_totalPaidNeverExceedsCeiling
+[PASS] invariant_windowCapHoldsExceptOwnerApproved
+ SpendPolicyInvariantTest invariants (runs: 10000, calls: 500000, reverts: 0)
+
+╭----------+-------------------+-------+---------+----------╮
+| Contract | Selector          | Calls | Reverts | Discards |
++===========================================================+
+| Handler  | agentAttack       | 41865 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | agentCancel       | 41814 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | anyoneExpire      | 41700 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | ownerApprove      | 41842 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | ownerLowerCeiling | 41572 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | ownerReject       | 41726 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | ownerTogglePause  | 41439 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | ownerWithdraw     | 41418 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | request           | 41640 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | requestBurst      | 41817 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | strangerApprove   | 41578 | 0       | 0        |
+|----------+-------------------+-------+---------+----------|
+| Handler  | warp              | 41589 | 0       | 0        |
+╰----------+-------------------+-------+---------+----------╯
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 239.43s (239.38s CPU time)
+
+Ran 4 test suites in 239.44s (316.26s CPU time): 101 tests passed, 0 failed, 0 skipped (101 total tests)
+exit 0

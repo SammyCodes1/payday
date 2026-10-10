@@ -1,0 +1,19 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# Node / Next.js
+node_modules/
+.next/
+.next-canary/
+*.tsbuildinfo
+web/data/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.keystore
+*.pem
+*.key

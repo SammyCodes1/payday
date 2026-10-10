@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.next-canary/
+next-env.d.ts
+*.tsbuildinfo
+data/
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,33 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+# Pinned compiler. Source pragma is ^0.8.24 (same as circlefin/arc-escrow).
+solc = "0.8.30"
+# Arc's official docs say the EVM baseline is Osaka (https://docs.arc.io/arc/references/evm-differences).
+# A community note (circlefin/arc-node PR #151) claims post-Paris opcodes (PUSH0) were not supported.
+# "paris" bytecode runs on both, so we pick the conservative target. Only cost: slightly more gas.
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 200
+remappings = [
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "forge-std/=lib/forge-std/src/",
+]
+
+[fuzz]
+runs = 10000
+seed = "0x5041594441590000000000000000000000000000000000000000000000000001"
+
+[invariant]
+runs = 10000
+depth = 50
+fail_on_revert = false
+
+[rpc_endpoints]
+# Verified at https://docs.arc.io/arc/references/connect-to-arc
+arc_testnet = "https://rpc.testnet.arc.io"
+
+[fmt]
+line_length = 120

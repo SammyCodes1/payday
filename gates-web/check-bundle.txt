@@ -1,0 +1,67 @@
+
+> payday-web@0.2.0 check:bundle
+> node scripts/check-bundle.mjs
+
+[bundle-check] building into .next-canary with canary secrets (tag daa2450fe829)…
+▲ Next.js 16.3.8 (Turbopack)
+✓ Running next.config.ts took 124ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 20.7s
+  Running TypeScript ...
+  Finished TypeScript in 17.0s ...
+  Collecting page data using 7 workers ...
+(node:834243) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:834217) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:834237) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:834208) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:834202) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:834228) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:834214) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  Generating static pages using 7 workers (0/7) ...
+  Generating static pages using 7 workers (1/7) 
+  Generating static pages using 7 workers (3/7) 
+  Generating static pages using 7 workers (5/7) 
+✓ Generating static pages using 7 workers (7/7) in 566ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/approvals
+├ ƒ /api/approvals/relay
+├ ƒ /api/auth/logout
+├ ƒ /api/auth/me
+├ ƒ /api/auth/nonce
+├ ƒ /api/auth/verify
+├ ƒ /api/cron/due
+├ ƒ /api/invoices
+├ ƒ /api/invoices/[id]
+├ ƒ /api/invoices/[id]/resolve
+├ ƒ /api/log
+├ ƒ /api/payees
+├ ƒ /api/policy
+├ ƒ /api/stats
+├ ○ /approvals
+├ ƒ /invoices/[id]
+├ ○ /log
+├ ○ /settings
+└ ƒ /stats
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+[bundle-check] 17 distinct 32-byte constants in client code, all published library constants
+[bundle-check] scanned 498 build files for canaries, 38 client files for secret patterns
+[bundle-check] OK: no secret value or secret env name reaches the client bundle
+exit 0

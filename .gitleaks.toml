@@ -1,0 +1,12 @@
+# Gitleaks config: default rules, skipping third-party and generated directories only.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "vendored dependencies and build output (not authored in this repo)"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)lib/(forge-std|openzeppelin-contracts)/''',
+  '''(^|/)(out|cache|broadcast)/''',
+  '''(^|/)web/\.next(-canary)?/''',
+]

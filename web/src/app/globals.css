@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Payday design tokens: "ledger" palette (deep teal = trust, saffron = warmth).
+   All text/background pairs used for text meet WCAG AA (>= 4.5:1); ratios noted.
+   ------------------------------------------------------------------ */
+@theme inline {
+  --font-serif: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Inter Tight Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", monospace;
+}
+
+@theme {
+  /* surfaces */
+  --color-mist: #f2f5f1;        /* page background */
+  --color-surface: #fbfcfa;     /* cards */
+  --color-fog: #e6ebe6;         /* subtle fills, neutral pill */
+  --color-line: #dbe2dc;
+  --color-line-strong: #c2ccc4;
+
+  /* ink */
+  --color-ink: #13201e;         /* 15.3:1 on mist */
+  --color-ink-soft: #2c3b38;
+  --color-muted: #56635f;       /* 5.7:1 on mist, 6.1:1 on surface */
+  --color-faint: #8a958f;       /* decorative only (< AA for text) */
+
+  /* primary: deep teal */
+  --color-teal: #137065;
+  --color-teal-strong: #0e5a52; /* button bg, 8.1:1 with white; 7.3:1 as text on mist */
+  --color-teal-deep: #0a463f;   /* hover, 10.7:1 with white */
+  --color-teal-wash: #dceee9;
+
+  /* accent: warm saffron */
+  --color-saffron: #e3a248;     /* accent fill, ink text on it 7.6:1 */
+  --color-saffron-deep: #8a4a10;/* accent text on mist 6.2:1 */
+  --color-saffron-wash: #fbecd6;
+
+  /* decision / status colours (text on wash) */
+  --color-pay: #17603a;        --color-pay-wash: #dcf0e2;        /* PAY_NOW   6.4:1 */
+  --color-schedule: #1e4b8f;   --color-schedule-wash: #e0e9f8;   /* SCHEDULE  7.0:1 */
+  --color-ask: #6f4a00;        --color-ask-wash: #f8ebc8;        /* ASK       6.7:1 */
+  --color-escalate: #9a3a0b;   --color-escalate-wash: #fbe2d2;   /* ESCALATE  5.7:1 */
+  --color-reject: #9b2226;     --color-reject-wash: #f8dcdc;     /* REJECT    6.1:1 */
+
+  --ease-calm: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* elevation: page (0) -> card (1, hairline) -> raised/sticky (2) -> overlay (3) */
+  --shadow-card: 0 0 0 0 transparent;
+  --shadow-hover: 0 10px 30px -18px rgb(19 32 30 / 0.35);
+  --shadow-raised: 0 1px 0 rgb(19 32 30 / 0.04), 0 8px 24px -18px rgb(19 32 30 / 0.28);
+  --shadow-overlay: 0 18px 50px -20px rgb(19 32 30 / 0.45), 0 0 0 1px rgb(19 32 30 / 0.06);
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+}
+
+:root {
+  color-scheme: light;
+  --z-sticky: 30;
+  --z-overlay: 50;
+  --z-toast: 60;
+}
+
+body {
+  background-color: var(--color-mist);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: var(--color-teal-wash); color: var(--color-ink); }
+
+.font-display {
+  font-family: var(--font-serif);
+  font-variation-settings: "opsz" 96;
+  letter-spacing: -0.02em;
+}
+.font-numeral {
+  font-family: var(--font-serif);
+  font-variation-settings: "opsz" 48;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+}
+.tnum { font-variant-numeric: tabular-nums; }
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-teal-strong);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-fog) 0%, #f6f8f5 50%, var(--color-fog) 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: 8px;
+}
+
+/* form fields */
+.field {
+  min-height: 2.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--color-ink);
+  transition: border-color 0.2s var(--ease-calm), box-shadow 0.2s var(--ease-calm);
+}
+.field:hover { border-color: rgb(19 32 30 / 0.4); }
+.field::placeholder { color: var(--color-muted); }
+
+/* data tables */
+.table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.table th {
+  text-align: left; font-weight: 500; color: var(--color-muted); font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-mono);
+  padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--color-line);
+}
+.table td { padding: 0.75rem; border-bottom: 1px solid var(--color-line); vertical-align: top; }
+.table tbody tr { transition: background-color 0.2s var(--ease-calm); }
+.table tbody tr:hover { background: rgb(230 235 230 / 0.5); }
+.table tbody tr:last-child td { border-bottom: 0; }
+
+/* Motion: transform/opacity only, neutralised by prefers-reduced-motion below. */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes scale-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+.page-in { animation: rise-in 0.55s var(--ease-calm) backwards; }
+.rise { animation: rise-in 0.6s var(--ease-calm) backwards; animation-delay: var(--d, 0ms); }
+.stagger > * { animation: rise-in 0.6s var(--ease-calm) backwards; }
+.stagger > :nth-child(2) { animation-delay: 70ms; }
+.stagger > :nth-child(3) { animation-delay: 140ms; }
+.stagger > :nth-child(4) { animation-delay: 210ms; }
+.stagger > :nth-child(n + 5) { animation-delay: 280ms; }
+.content-in { animation: fade-in 0.45s var(--ease-calm) backwards; }
+.alert-in { animation: scale-in 0.35s var(--ease-calm) backwards; }
+
+.lift { transition: transform 0.3s var(--ease-calm), box-shadow 0.3s var(--ease-calm), border-color 0.3s var(--ease-calm); }
+@media (hover: hover) { .lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); } }
+.lift:active { transform: translateY(0) scale(0.99); }
+
+@keyframes badge-pop { from { opacity: 0; transform: scale(0.5); } }
+.badge-pop { animation: badge-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .lift:hover, .lift:active { transform: none !important; }
+}
