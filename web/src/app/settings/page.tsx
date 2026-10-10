@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConfig } from "wagmi";
 import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
-import { isAddress, type Address } from "viem";
+import { erc20Abi, isAddress, type Address } from "viem";
 import { spendPolicyAbi } from "@/lib/abi";
 import { categoryToBytes32 } from "@/lib/ids";
 import { toUnits } from "@/lib/money";
@@ -10,7 +10,7 @@ import { api, fmtUsdc } from "@/components/api";
 import { Address as Addr, Alert, Button, Card, PageTitle, SectionTitle, Spinner, Stat, StatusPill, explorer } from "@/components/ui";
 
 interface Overview {
-  policy: Address; owner: Address; agent: Address; paused: boolean; perPaymentCap: string; monthlyCap: string;
+  policy: Address; owner: Address; agent: Address; token: Address; paused: boolean; perPaymentCap: string; monthlyCap: string;
   globalCeiling: string; totalPaid: string; pendingTtl: string; spentInWindow: string; balance: string;
 }
 interface Payee {
@@ -84,6 +84,20 @@ export default function Settings() {
               <Button variant="danger" onClick={() => send(() => writeContract(config, { address: policy(), abi: spendPolicyAbi, functionName: "pause" }), "pause")}>Pause all payments</Button>
             )}
           </div>
+        </Card>
+
+        <Card as="section">
+          <SectionTitle>Fund the policy</SectionTitle>
+          <p className="mb-4 text-sm text-muted">
+            The agent can only pay out USDC that this contract holds. Send test USDC to{" "}
+            <Addr value={o.policy} href={explorer.address(o.policy)} className="text-ink-soft" /> from your wallet.
+            On Arc, USDC is also the gas token. Get testnet USDC at{" "}
+            <a className="underline" href="https://faucet.circle.com" target="_blank" rel="noreferrer">faucet.circle.com</a> (Arc Testnet).
+          </p>
+          {BigInt(o.balance) === 0n && <div className="mb-4"><Alert tone="info">This policy holds 0 USDC. Deposit some before the demo, e.g. 50 USDC.</Alert></div>}
+          <form className={row} onSubmit={(e) => { const f = form(e); void send(() => writeContract(config, { address: o.token, abi: erc20Abi, functionName: "transfer", args: [policy(), toUnits(f.v!)] }), "deposit"); }}>
+            <input className="field flex-1" name="v" placeholder="Amount to deposit (USDC)" required /> <Button variant="secondary">Deposit from my wallet</Button>
+          </form>
         </Card>
 
         <Card as="section">

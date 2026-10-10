@@ -1,0 +1,20 @@
+{
+  "chain": "arcTestnet",
+  "chainId": 5042002,
+  "rpc": "https://rpc.testnet.arc.io",
+  "explorer": "https://explorer.testnet.arc.io",
+  "spendPolicy": "0x5dC481B17691fE4Bf3AfF4b9f4cDce63359D8Cd0",
+  "deployTx": "0x533821ed19d0696fb941b04a24bd40c0fba33cbab00dc13920185dc1ff7754a6",
+  "deployBlock": 66458407,
+  "sourceCommit": "e2c5a45b2794839dcecdf9ada4a168fc6cb67050",
+  "spendPolicySha256": "c798da85cdc5a1961ced36ad59ce76afba0f9890c095f11de638e981b40ba740",
+  "token": "0x3600000000000000000000000000000000000000",
+  "owner": "0x48d38B9311294DdC4Aa4c3CB21E84B865FFB9438",
+  "agent": "0x4a46A095cDce1518F263a79eb945Abe0793DD4B1",
+  "caps": {
+    "perPayment": { "raw": "20000000", "usdc": "20" },
+    "monthly": { "raw": "100000000", "usdc": "100" },
+    "globalCeiling": { "raw": "200000000", "usdc": "200" },
+    "pendingTtlSeconds": 604800
+  }
+}

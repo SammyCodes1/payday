@@ -1,5 +1,5 @@
 import "server-only";
-import { keccak256, toBytes, type Address, type Hex } from "viem";
+import { keccak256, parseEventLogs, toBytes, type Address, type Hex } from "viem";
 import { spendPolicyAbi } from "./abi";
 import { publicClient } from "./chain";
 import { serverConfig, statsPolicies } from "./config";
@@ -23,7 +23,10 @@ export async function fetchPolicyEvents(policy: Address, fromBlock: bigint): Pro
   const out: PolicyEvent[] = [];
   for (let start = fromBlock; start <= latest; start += chunk) {
     const end = start + chunk - 1n > latest ? latest : start + chunk - 1n;
-    const logs = await client.getContractEvents({ address: policy, abi: spendPolicyAbi, fromBlock: start, toBlock: end });
+    // Address-only filter, decoded locally: Arc testnet's RPC rejects eth_getLogs with a long
+    // topic OR-list (all 21 event signatures) as "requested range too large" even for tiny ranges.
+    const raw = await client.getLogs({ address: policy, fromBlock: start, toBlock: end });
+    const logs = parseEventLogs({ abi: spendPolicyAbi, logs: raw });
     for (const l of logs) {
       out.push({
         policy,

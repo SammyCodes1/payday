@@ -259,6 +259,51 @@ override Ownable calls; `low-level-calls` for the ERC-1271 `staticcall`, as in O
 * **Question**: should hard-rule refusals also be logged? They currently revert with no event. A
   non-reverting `PaymentRefused` would let the agent spam storage, which is why we avoided it.
 
+## Live on Arc Testnet
+
+| | |
+|---|---|
+| Chain | Arc Testnet, chain id `5042002`, RPC `https://rpc.testnet.arc.io` |
+| SpendPolicy | [`0x5dC481B17691fE4Bf3AfF4b9f4cDce63359D8Cd0`](https://explorer.testnet.arc.io/address/0x5dC481B17691fE4Bf3AfF4b9f4cDce63359D8Cd0) (block 66458407, tx `0x533821ed…7754a6`) |
+| Source | commit `e2c5a45`, `src/SpendPolicy.sol` sha256 `c798da85…ba740` (audited) |
+| USDC | `0x3600000000000000000000000000000000000000` (6 decimals; also Arc's gas token) |
+| Owner | `0x48d38B9311294DdC4Aa4c3CB21E84B865FFB9438` |
+| Agent | `0x4a46A095cDce1518F263a79eb945Abe0793DD4B1` |
+| Caps | 20 USDC per payment · 100 USDC per rolling 30 days · 200 USDC lifetime · pending approvals expire after 7 days |
+
+Machine-readable copy: `deployments/arc-testnet.json`. Testnet only; no mainnet deployment exists.
+
+### Run the web app against it
+
+Node >= 22.13 (uses `node:sqlite`).
+
+```bash
+cd web
+cp .env.example .env.local   # public values are pre-filled for the live policy
+# then set SESSION_SECRET (>= 32 random chars) and PAYDAY_APP_ORIGIN; never commit .env.local
+npm ci && npm run build && npm start
+```
+
+`PAYDAY_EXECUTOR=none` is a dry run: invoices are read and decided, but nothing is submitted on chain.
+To let the agent submit payments, the policy's `agent()` must be a Circle developer-controlled wallet:
+set `PAYDAY_EXECUTOR=circle` plus the `CIRCLE_*` variables (server-only secrets), and if the Circle
+wallet address differs from the current agent, rotate it from the owner wallet with `setAgent` first.
+
+### Demo script
+
+1. Open the app, **Connect wallet** (owner `0x48d3…9438`, network Arc Testnet) and sign in.
+2. **Settings → Policy**: show the caps (20 / 100 / 200 USDC), owner, agent, and the contract link.
+3. **Settings → Fund the policy**: deposit e.g. 50 USDC from the owner wallet (the agent can only
+   spend what the contract holds).
+4. **Settings → Allow-listed payees**: add a payee on chain (address, label, category, cap). This is
+   the only address the agent can ever pay that payee.
+5. **Home**: upload an invoice (PDF/image). The agent extracts it and explains its decision:
+   within caps → pay; over the per-payment cap or a changed bank detail → escalate.
+6. **Approvals**: an escalated payment waits here. Approve it by signing the EIP-712 message in your
+   wallet; the agent relays it and the USDC moves. Let it lapse and it expires after 7 days.
+7. **Log / Stats**: every payment, refusal and approval is an on-chain event with an explorer link.
+8. Kill switch: **Settings → Pause all payments**.
+
 ## Deploy (later; do NOT run yet)
 
 Windows PowerShell. Arc Foundry officially supports Windows only through WSL. Standard Foundry for
